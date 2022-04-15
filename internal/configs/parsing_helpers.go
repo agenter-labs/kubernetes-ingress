@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -301,6 +302,19 @@ func ParseRewriteList(s string) (map[string]string, error) {
 	return rewrites, nil
 }
 
+// ParseFPMServiceList ensures that the string is a semicolon-separated list of services
+func ParseFPMServiceList(s string) (map[string]version1.FPM, error) {
+	prefixes := make(map[string]version1.FPM)
+	for _, part := range strings.Split(s, ";") {
+		serviceName, fpm, err := parseFpmService(part)
+		if err != nil {
+			return nil, err
+		}
+		prefixes[serviceName] = fpm
+	}
+	return prefixes, nil
+}
+
 // ParseStickyServiceList ensures that the string is a semicolon-separated list of sticky services
 func ParseStickyServiceList(s string) (map[string]string, error) {
 	services := make(map[string]string)
@@ -347,6 +361,42 @@ func parseRewrites(service string) (serviceName string, rewrite string, err erro
 	}
 
 	return svcNameParts[1], rwPathParts[1], nil
+}
+
+func parseFpmService(service string) (serviceName string, prefix version1.FPM, err error) {
+
+	fpm := version1.FPM{
+		Enabled: false,
+		Prefix:  "",
+		Index:   "index.php",
+	}
+
+	serviceName = ""
+
+	for _, part := range strings.Split(strings.TrimSpace(service), " ") {
+
+		parts := strings.Split(part, "=")
+
+		if len(parts) != 2 {
+			return "", fpm, fmt.Errorf("Invalid fpm format: %s", parts)
+		}
+
+		if parts[0] == "serviceName" {
+			serviceName = parts[1]
+		} else if parts[0] == "prefix" {
+			fpm.Prefix = parts[1]
+		} else if parts[0] == "index" {
+			fpm.Index = parts[1]
+		}
+	}
+
+	if len(serviceName) == 0 {
+		return "", fpm, fmt.Errorf("Invalid fpm service: %s", service)
+	}
+
+	fpm.Enabled = true
+
+	return serviceName, fpm, nil
 }
 
 var (

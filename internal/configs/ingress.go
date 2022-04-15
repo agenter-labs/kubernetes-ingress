@@ -87,6 +87,7 @@ func generateNginxCfg(ingEx *IngressEx, apResources *AppProtectResources, dosRes
 	rewrites := getRewrites(ingEx)
 	sslServices := getSSLServices(ingEx)
 	grpcServices := getGrpcServices(ingEx)
+	fpmServices := getFpmServices(ingEx)
 
 	upstreams := make(map[string]version1.Upstream)
 	healthChecks := make(map[string]version1.HealthCheck)
@@ -107,6 +108,10 @@ func generateNginxCfg(ingEx *IngressEx, apResources *AppProtectResources, dosRes
 			if hc, exists := ingEx.HealthChecks[ingEx.Ingress.Spec.DefaultBackend.Service.Name+GetBackendPortAsString(ingEx.Ingress.Spec.DefaultBackend.Service.Port)]; exists {
 				healthChecks[name] = createHealthCheck(hc, name, &cfgParams)
 			}
+		}
+
+		if _, exists := fpmServices[ingEx.Ingress.Spec.DefaultBackend.Service.Name]; !exists {
+			fpmServices[ingEx.Ingress.Spec.DefaultBackend.Service.Name] = version1.FPM{Enabled: false}
 		}
 	}
 
@@ -222,10 +227,15 @@ func generateNginxCfg(ingEx *IngressEx, apResources *AppProtectResources, dosRes
 				upstreams[upsName] = upstream
 			}
 
+			if _, exists := fpmServices[path.Backend.Service.Name]; !exists {
+				fpmServices[path.Backend.Service.Name] = version1.FPM{Enabled: false}
+			}
+
 			ssl := isSSLEnabled(sslServices[path.Backend.Service.Name], cfgParams, staticParams)
 			proxySSLName := generateProxySSLName(path.Backend.Service.Name, ingEx.Ingress.Namespace)
 			loc := createLocation(pathOrDefault(path.Path), upstreams[upsName], &cfgParams, wsServices[path.Backend.Service.Name], rewrites[path.Backend.Service.Name],
-				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType, path.Backend.Service.Name)
+				ssl, grpcServices[path.Backend.Service.Name], proxySSLName, path.PathType,
+				path.Backend.Service.Name, fpmServices[path.Backend.Service.Name])
 
 			if isMinion && cfgParams.JWTKey != "" {
 				jwtAuth, redirectLoc, warnings := generateJWTConfig(ingEx.Ingress, ingEx.SecretRefs, &cfgParams, getNameForRedirectLocation(ingEx.Ingress))
@@ -250,7 +260,7 @@ func generateNginxCfg(ingEx *IngressEx, apResources *AppProtectResources, dosRes
 			pathtype := networking.PathTypePrefix
 
 			loc := createLocation(pathOrDefault("/"), upstreams[upsName], &cfgParams, wsServices[ingEx.Ingress.Spec.DefaultBackend.Service.Name], rewrites[ingEx.Ingress.Spec.DefaultBackend.Service.Name],
-				ssl, grpcServices[ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, ingEx.Ingress.Spec.DefaultBackend.Service.Name)
+				ssl, grpcServices[ingEx.Ingress.Spec.DefaultBackend.Service.Name], proxySSLName, &pathtype, ingEx.Ingress.Spec.DefaultBackend.Service.Name, fpmServices[ingEx.Ingress.Spec.DefaultBackend.Service.Name])
 			locations = append(locations, loc)
 
 			if cfgParams.HealthCheckEnabled {
@@ -390,7 +400,7 @@ func generateIngressPath(path string, pathType *networking.PathType) string {
 	return path
 }
 
-func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string) version1.Location {
+func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, websocket bool, rewrite string, ssl bool, grpc bool, proxySSLName string, pathType *networking.PathType, serviceName string, fpm version1.FPM) version1.Location {
 	loc := version1.Location{
 		Path:                 generateIngressPath(path, pathType),
 		Upstream:             upstream,
@@ -409,6 +419,7 @@ func createLocation(path string, upstream version1.Upstream, cfg *ConfigParams, 
 		ProxySSLName:         proxySSLName,
 		LocationSnippets:     cfg.LocationSnippets,
 		ServiceName:          serviceName,
+		FPM:                  fpm,
 	}
 
 	return loc

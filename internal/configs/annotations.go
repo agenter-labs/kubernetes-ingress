@@ -2,6 +2,7 @@ package configs
 
 import (
 	"github.com/golang/glog"
+	"github.com/nginxinc/kubernetes-ingress/internal/configs/version1"
 )
 
 // JWTKeyAnnotation is the annotation where the Secret with a JWK is specified.
@@ -27,6 +28,7 @@ var masterBlacklist = map[string]bool{
 	"nginx.org/ssl-services":                  true,
 	"nginx.org/grpc-services":                 true,
 	"nginx.org/websocket-services":            true,
+	"nginx.org/fpm-services":                  true,
 	"nginx.com/sticky-cookie-services":        true,
 	"nginx.com/health-checks":                 true,
 	"nginx.com/health-checks-mandatory":       true,
@@ -422,6 +424,18 @@ func getSSLServices(ingEx *IngressEx) map[string]bool {
 func getGrpcServices(ingEx *IngressEx) map[string]bool {
 	if value, exists := ingEx.Ingress.Annotations["nginx.org/grpc-services"]; exists {
 		return ParseServiceList(value)
+	}
+	return nil
+}
+
+func getFpmServices(ingEx *IngressEx) map[string]version1.FPM {
+
+	if value, exists := ingEx.Ingress.Annotations["nginx.org/fpm-services"]; exists {
+		prefixes, err := ParseFPMServiceList(value)
+		if err != nil {
+			glog.Error(err)
+		}
+		return prefixes
 	}
 	return nil
 }

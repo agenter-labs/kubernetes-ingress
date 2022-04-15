@@ -125,6 +125,13 @@ type JWTAuth struct {
 	RedirectLocationName string
 }
 
+type FPM struct {
+	Enabled    bool
+	Prefix     string
+	Index      string
+	ScriptFile string
+}
+
 // Location describes an NGINX location.
 type Location struct {
 	LocationSnippets     []string
@@ -138,6 +145,8 @@ type Location struct {
 	Rewrite              string
 	SSL                  bool
 	GRPC                 bool
+	FPM                  FPM
+	FPMPrefix            string
 	ProxyBuffering       bool
 	ProxyBuffers         string
 	ProxyBufferSize      string

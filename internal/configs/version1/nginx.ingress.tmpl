@@ -137,6 +137,19 @@ server {
 		{{else}}
 		grpc_pass grpc://{{$location.Upstream.Name}}{{$location.Rewrite}};
 		{{end}}
+
+		{{else if $location.FPM.Enabled}}
+
+		fastcgi_pass {{$location.Upstream.Name}};
+		fastcgi_index {{$location.FPM.Index}};
+		include fastcgi_params;
+
+		fastcgi_param SCRIPT_FILENAME {{if $location.FPM.ScriptFile}}{{$location.FPM.ScriptFile}}{{else}}/var/www/html/index.php{{end}};
+
+		{{if $location.FPM.Prefix}}
+		fastcgi_param HTTP_X_FORWARDED_PREFIX {{$location.FPM.Prefix}};
+		{{end}}
+
 		{{else}}
 		proxy_http_version 1.1;
 		{{if $location.Websocket}}
